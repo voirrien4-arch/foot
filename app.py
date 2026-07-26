@@ -151,7 +151,7 @@ def search():
         start = datetime.utcnow()
 
         result = subprocess.run(
-            ['sherlock', username, '--print-found', '--no-color', '--timeout', '10'],
+            ['python', '-m', 'sherlock', username, '--print-found', '--no-color', '--timeout', '10'],
             capture_output=True, text=True, timeout=120
         )
 
