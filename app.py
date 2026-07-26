@@ -1,12 +1,11 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import subprocess, os, re, requests, sys
+import subprocess, os, re, requests, sys, shutil
 from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-# ─── Métadonnées des sites (catégorie, pays, description) ─────────────────────
 SITES_META = {
     "github.com":        {"category": "Développement",   "country": "US", "lang": "EN", "desc": "Plateforme de code source et projets open-source"},
     "twitter.com":       {"category": "Réseau social",   "country": "US", "lang": "EN", "desc": "Réseau social de microblogging"},
@@ -84,14 +83,11 @@ def check_http_status(url):
 def generate_text_report(username, results, duration):
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     total = len(results)
-
     categories = {}
     countries = {}
     for r in results:
-        cat = r["category"]
-        cty = r["country"]
-        categories[cat] = categories.get(cat, 0) + 1
-        countries[cty] = countries.get(cty, 0) + 1
+        categories[r["category"]] = categories.get(r["category"], 0) + 1
+        countries[r["country"]] = countries.get(r["country"], 0) + 1
 
     cat_sorted = sorted(categories.items(), key=lambda x: -x[1])
     cty_sorted = sorted(countries.items(), key=lambda x: -x[1])
@@ -105,18 +101,14 @@ def generate_text_report(username, results, duration):
     lines.append(f"  Profils    : {total} trouvé(s) sur 400+ sites")
     lines.append(f"  Source     : Sherlock Project")
     lines.append("=" * 60)
-
     lines.append("\n📊 RÉPARTITION PAR CATÉGORIE")
     lines.append("-" * 40)
     for cat, count in cat_sorted:
-        bar = "█" * count
-        lines.append(f"  {cat:<22} {count:>3}  {bar}")
-
+        lines.append(f"  {cat:<22} {count:>3}  {'█' * count}")
     lines.append("\n🌍 RÉPARTITION PAR PAYS")
     lines.append("-" * 40)
     for cty, count in cty_sorted:
         lines.append(f"  {cty:<10} {count:>3} profil(s)")
-
     lines.append("\n🔍 DÉTAIL DES PROFILS TROUVÉS")
     lines.append("-" * 40)
     for i, r in enumerate(results, 1):
@@ -127,11 +119,9 @@ def generate_text_report(username, results, duration):
         lines.append(f"        🌍 Pays     : {r['country']} | Langue : {r['lang']}")
         lines.append(f"        📡 HTTP     : {status_icon} {r['http_status'] or 'N/A'}")
         lines.append(f"        ℹ️  Info     : {r['desc']}")
-
     lines.append("\n" + "=" * 60)
     lines.append(f"  FIN DU RAPPORT — @{username}")
     lines.append("=" * 60)
-
     return "\n".join(lines)
 
 
@@ -147,11 +137,14 @@ def search():
         if c in username:
             return jsonify({'error': 'Caractères non autorisés'}), 400
 
+    # Trouver le binaire sherlock dans le venv courant
+    sherlock_bin = shutil.which('sherlock') or os.path.join(os.path.dirname(sys.executable), 'sherlock')
+
     try:
         start = datetime.utcnow()
 
         result = subprocess.run(
-            [sys.executable, '-m', 'sherlock', username, '--print-found', '--no-color', '--timeout', '10'],
+            [sherlock_bin, username, '--print-found', '--no-color', '--timeout', '10'],
             capture_output=True, text=True, timeout=120
         )
 
@@ -165,7 +158,6 @@ def search():
                 site = match.group(1) if match else url
                 meta = get_site_meta(url)
                 http_status = check_http_status(url) if check_status else None
-
                 found.append({
                     "site":        site,
                     "url":         url,
@@ -186,8 +178,8 @@ def search():
             "timestamp":   datetime.utcnow().isoformat() + "Z",
             "results":     found,
             "text_report": text_report,
-            "debug_stdout": result.stdout[:500],
-            "debug_stderr": result.stderr[:500]
+            "debug_sherlock_bin": sherlock_bin,
+            "debug_stderr": result.stderr[:300]
         })
 
     except subprocess.TimeoutExpired:
@@ -198,7 +190,13 @@ def search():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'service': 'dosinit-sherlock-api'})
+    sherlock_bin = shutil.which('sherlock') or os.path.join(os.path.dirname(sys.executable), 'sherlock')
+    return jsonify({
+        'status': 'ok',
+        'service': 'dosinit-sherlock-api',
+        'sherlock_bin': sherlock_bin,
+        'sherlock_exists': os.path.exists(sherlock_bin)
+    })
 
 
 if __name__ == '__main__':
