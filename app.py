@@ -185,7 +185,9 @@ def search():
             "scanned":     "400+",
             "timestamp":   datetime.utcnow().isoformat() + "Z",
             "results":     found,
-            "text_report": text_report
+            "text_report": text_report,
+            "debug_stdout": result.stdout[:500],
+            "debug_stderr": result.stderr[:500]
         })
 
     except subprocess.TimeoutExpired:
