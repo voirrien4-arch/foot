@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import subprocess, os, re, requests
+import subprocess, os, re, requests, sys
 from datetime import datetime
 
 app = Flask(__name__)
@@ -151,7 +151,7 @@ def search():
         start = datetime.utcnow()
 
         result = subprocess.run(
-            ['python', '-m', 'sherlock', username, '--print-found', '--no-color', '--timeout', '10'],
+            [sys.executable, '-m', 'sherlock', username, '--print-found', '--no-color', '--timeout', '10'],
             capture_output=True, text=True, timeout=120
         )
 
